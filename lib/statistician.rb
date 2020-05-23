@@ -2,41 +2,51 @@ require_relative './roller'
 require 'thread'
 
 class Statistician
+    THREAD_LIMIT = 5
+    TRIAL_LIMIT = 100
     start_time = Time.now
-    rollers = []
+    
     stat_rolls = []
     trials = []
     max_threads = 0
     threads = Queue.new
-    6.times do
-        rollers.push Roller.create([Die.create(6), Die.create(6), Die.create(6), Die.create(6)])
-    end
     
-    until trials.size >= 1000 do
-        if threads.size < 1000
-            new_thread = Thread.new do
+    
+    while threads.size < THREAD_LIMIT do
+        new_thread = Thread.new do
+            rollers = []
+            6.times do
+                rollers.push Roller.create([Die.create(6), Die.create(6), Die.create(6), Die.create(6)])
+            end
+            my_trials = []
+
+            until my_trials.size >= TRIAL_LIMIT.to_f / THREAD_LIMIT
                 attempts = 0
-            found = false
-                
-            until found do 
-                attempts += 1
-                
-                stat_roll = []
-                rollers.each do |roller|
-                
-                    stat_roll.push roller.roll_sum(drop: 1, drop_end: :lowest)
+                found = false
                     
+                until found do 
+                    attempts += 1
+                    
+                    stat_roll = []
+                    rollers.each do |roller|
+                    
+                        stat_roll.push roller.roll_sum(drop: 1, drop_end: :lowest)
+                        
+                    end
+                found = stat_roll.count(18) >= 3
                 end
-            found = stat_roll.count(18) >= 2
+                found = false
+                my_trials.push attempts
             end
-            found = false
-            trials.push attempts
-            end
-            threads.push new_thread
-        else
-            threads.pop.join
+            trials.concat my_trials
         end
+        threads.push(new_thread)
         max_threads = [threads.size, max_threads].max
+        puts max_threads
+    end
+
+    while threads.size > 0
+        threads.pop.join
     end
 
     puts 'Completed ' + trials.size.to_s + ' trials'
